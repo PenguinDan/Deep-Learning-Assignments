@@ -13,6 +13,10 @@ def softmax_loss_naive(W, X, y, reg):
     # here, it is easy to run into numeric instability. Don't forget the        #
     # regularization!                                                           #
     #############################################################################
+    #Stabilize each row of the input matrix so that the highest value is 0
+    #First get the maximum value of each row in a N x 1 Vector
+    batch_size = X.shape[0];
+    row_max_value = np.amax(X, axis=1);
     #Total loss added for each class classification
     total_loss = 0;
     #Get scores for each class where each value in the row is equal to
@@ -21,57 +25,41 @@ def softmax_loss_naive(W, X, y, reg):
         curr_x = X[i];
         #Does a 1xD * DxC to output a vector 1xC with scores for each class
         ind_class_scores = np.matmul(curr_x, W);
-        #Get the max value from the current row normalize the vector
+        #Get the max value from each row to normalize the vector
         row_max_value = np.max(curr_x);
-        #Subtract the max value from the current row so that the highest
-        #Value found in the current row is 0 and everything else is negative
+        #Subtract the max value from every other value from the row
         curr_x = curr_x - row_max_value;
-        #Begin the softmax formula of
-        #e^(individual class score) / Summation(e^(Each class score in the row))
-        #e_ind_class_scores = e^(individual class scores)
+        #e^(individual class scores)
         e_ind_class_scores = np.exp(ind_class_scores);
-        #softmax_output will now carry a percentage score for each value in the
-        #row in respect to their classes
-        #softmax_output = e^(individual class scores) / Summation(e^(Each class score in the row))
+        #e^(individual class scores) / (Sum of class scores)
+        #Now the whole row is a percentage value where when added together = 1
+        #This is your softmax output
         softmax_output = e_ind_class_scores / np.sum(e_ind_class_scores);
-        #According to the Stanford Lectures, the Loss function is just the
-        #Natural Log of the softmax_output
         #-ln(e^(individual class scores) / (Sum of class scores)) = Loss Function
-        #In this case, the "Loss" is in respect to its correct class classification
-        #So we modify the formula to be -ln(e^(score of class Y) / Summation(e^(Each class score in the row)))
+        #We only care about the log of the specified class
         label = y[i];
-        log_class_score = -np.log(softmax_output[label]);
-        #Add the loss value received from classifying class Y incorrectly
-        total_loss += log_class_score;
-        #According to the website https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/
-        #The gradient of the softmax_outputs work in the following manner
-        #Gradient of Cross Entropy-Softmax = (Sj - DELTA)*Xi
-        #Where DELTA = 1 if j == Class Label, Sj = the value from the softmax vector with index j,
-        #Xi = the current row from the X matrix
-        #In the inner loop, iterate through the total amount of classifications/softmax vector values
+        log_class_scores_prob = -np.log(softmax_output[label]);
+        #Add the loss to the total_loss
+        total_loss += log_class_scores_prob;
+        #Here, calculate the Gradient and loop through the amount of classes
         for j in range(W.shape[1]):
-            #Get the current softmax value from the softmax vector
             softmax_val = softmax_output[j];
-            #0 if j != Correct Class Label, 1 if j == Correct Class Label
-            delta = 0;
+            #Gradient update rule, (SoftmaxFunctionValue - p)x where p = 1 if j == label
+            #and p = 0 if j != label
+            p = 0;
             if j == label:
-                delta = 1;
-            #Update the current gradient with (Sj - DELTA) * X[i]
-            dW[:, j] += (softmax_val - delta)*X[i];
+                p = 1;
+            dW[:, j] += X[i] * (softmax_val - p)
     #Divide total_loss variable by batch_size to get the average loss
     avg_loss = total_loss/batch_size;
-    #Add the regularization value to the average loss to get the total loss
     loss = avg_loss + reg*np.sum(np.dot(W.T, W));
-    #Divide total gradient by batch_size to get the average gradient
-    dW = (dW/batch_size);
-    #Add the regularization value which is the Gradient in respect to W of
-    #lambda*W.T*W which is 2*lambda*W
-    dw = dw + 2*reg*W;
+    #Get the average gradient and add weight regularization
+    dW = (dW/batch_size) + 2*reg*W;
 
     #############################################################################
     #                          END OF YOUR CODE                                 #
     #############################################################################
-    #Return average loss and average gradient
+
     return loss, dW
 
 
@@ -86,10 +74,8 @@ def softmax_loss_vectorized(W, X, y, reg):
     # here, it is easy to run into numeric instability. Don't forget the        #
     # regularization!                                                           #
     #############################################################################
-    #
     #Get scores for each class where each value in the row is equal to
     #W(j)*X(i), now we can do e^(W(j)*X(i)) for each value in the row
-    #Where X = N x D and W = D x C where K is the number of classes
     class_scores = np.matmul(X, W);
     #First get the maximum value of each row in a N x 1 vector
     row_max_values = np.amax(class_scores, axis=1);
